@@ -1,6 +1,6 @@
 Description: >
     Kolapo Obajuluwa
-    CFN Template for deploying Udagram - a high-availability web application infrastructure.
+    CFN Template for deploying Udagram - a high-availability web application network infrastructure.
 
 Parameters:
     EnvironmentName:
