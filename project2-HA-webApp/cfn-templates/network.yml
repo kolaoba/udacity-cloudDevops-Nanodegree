@@ -13,19 +13,19 @@ Parameters:
     PublicSubnet1CIDR:
         Description: Please enter the CIDR range for the VPC's public subnet 1
         Type: String
-        Default: 10.0.0.0/24
+        Default: 10.0.1.0/24
     PublicSubnet2CIDR:
         Description: Please enter the CIDR range for the VPC's public subnet 2
         Type: String
-        Default: 10.0.0.0/24
+        Default: 10.0.2.0/24
     PrivateSubnet1CIDR:
         Description: Please enter the CIDR range for the VPC's private subnet 1
         Type: String
-        Default: 10.0.0.0/24
+        Default: 10.0.3.0/24
     PrivateSubnet2CIDR:
         Description: Please enter the CIDR range for the VPC's private subnet 2
         Type: String
-        Default: 10.0.0.0/24
+        Default: 10.0.4.0/24
 
 Resources:
 
