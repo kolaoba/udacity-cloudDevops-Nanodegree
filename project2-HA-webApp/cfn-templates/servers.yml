@@ -1,197 +1,187 @@
+AWSTemplateFormatVersion: 2010-09-09
 Description: >
-    Kolapo Obajuluwa
-    CFN Template for deploying Udagram - a high-availability web application server infrastructure.
-    Depends on network infrastructure generated using network.yml.
-
+  Kolapo Obajuluwa | The project is to deploy an Apache Web Server for a highly available web app (Udagram) using AWS Cloud Formation.
+  This template deploys the server infrastructure for the app.
 Parameters:
-    EnvironmentName:
-        Description: Name of the Project which also serves as a prefix for resource identification.
-        Type: String
-    EC2ImageId:
-        Description: AMI Id to use for EC2 deployment.
-        Type: String
-    EC2InstanceType:
-        Description: Instance type to use for EC2 deployment.
-        AllowedValues:
-            - t2.medium
-            - t3.medium
-            - t3.large
-            - t2.large
-        Default: t2.medium
-        Type: String
-    EC2VolumeSize:
-        Description: The EBS Volume Size to be attached to EC2 Instance(s).
-        Type: Number
-  
+
+  EnvironmentName:
+    Type: String
+    Description: Please enter environment name, used as part of value for Name tag
+
+  WebServerImageId:
+    Type: AWS::EC2::Image::Id
+    Description: Please enter an AMI of ubuntu 18
+
+  WebServerInstanceType:
+    Type: String
+    Description: Please enter the instance type for the web server
+
+
 Resources:
 
-    # IAM Instance Profile Configuration
-    # allowing instances access to S3 (Readonly)
+  LBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: load balancer
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+      VpcId:
+        Fn::ImportValue:
+          !Sub "${EnvironmentName}-VPCID"
 
-    UdagramS3ReadOnlyforEC2:
-        Type: AWS::IAM::Role
-        Properties:
-            ManagedPolicyArns:
-                - "arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess"
-            AssumeRolePolicyDocument:
-                Version: "2012-10-17"
-                Statement:
-                    - 
-                        Effect: "Allow"
-                        Principal:
-                            Service:
-                                - "ec2.amazonaws.com"
-                        Action:
-                            - "sts:AssumeRole"
-            Path: "/"
-    
-    EC2InstanceProfile:
-        Type: AWS::IAM::InstanceProfile
-        Properties:
-            Path: "/"
-            Roles:
-                - !Ref UdagramS3ReadOnlyforEC2
+  WebServersSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow http to our hosts and SSH from local only
+      GroupName: WebServers SG
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+        - CidrIp: 0.0.0.0/0
+          FromPort: 0
+          IpProtocol: tcp
+          ToPort: 65535
+      VpcId:
+        Fn::ImportValue:
+          !Sub "${EnvironmentName}-VPCID"
+  UdacityProjectRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Description: Allow read only s3 permissions for ec2 resource(s)
+      Path: /
+      Policies:
+        - PolicyName: AmazonS3ReadOnlyAccess
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action: s3:Get*
+                Resource: '*'
 
-    # Security Group Configuration for
-    # Load Balancer & Web Servers
+  UdacityProjectInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref UdacityProjectRole
 
-    LoadBalancerSecurityGroup:
-        Type: AWS::EC2::SecurityGroup
-        Properties:
-            GroupDescription: Allow http to load balancer
-            VpcId:
-                Fn::ImportValue:
-                    !Sub "${EnvironmentName}-VPCID"
-            SecurityGroupIngress:
-                - IpProtocol: tcp
-                  FromPort: 80
-                  ToPort: 80
-                  CidrIp: 0.0.0.0/0
-            SecurityGroupEgress:
-                - IpProtocol: tcp
-                  FromPort: 80
-                  ToPort: 80
-                  CidrIp: 0.0.0.0/0
-            Tags:
-                - Key: Name
-                  Value: !Sub "${EnvironmentName}-LB-SG"
+  WebServersLaunchConfiguration:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      BlockDeviceMappings:
+        - DeviceName: /dev/sda1
+          Ebs:
+            DeleteOnTermination: true
+            VolumeSize: 10
+            VolumeType: gp2
+      IamInstanceProfile: !Ref UdacityProjectInstanceProfile
+      ImageId: !Ref WebServerImageId
+      InstanceType: !Ref WebServerInstanceType
+      SecurityGroups:
+        - !Ref WebServersSecurityGroup
+      UserData:
+        Fn::Base64: |
+          #!/bin/bash
+          apt-get update -y
+          apt-get install apache2 -y
+          systemctl start apache2.service
+          cd /var/www/html
+          echo "Udacity Demo Web Server Up and Running!" > index.html
 
-    WebServerSecurityGroup:
-        Type: AWS::EC2::SecurityGroup
-        Properties:
-            GroupDescription: Allow http to hosts and SSH from local network alone
-            VpcId:
-                Fn::ImportValue:
-                    !Sub "${EnvironmentName}-VPCID"
-            SecurityGroupIngress:
-                - IpProtocol: tcp
-                  FromPort: 80
-                  ToPort: 80
-                  CidrIp: 0.0.0.0/0
-                - IpProtocol: tcp
-                  FromPort: 22
-                  ToPort: 22
-                  CidrIp: 0.0.0.0/0
-            SecurityGroupEgress:
-                - IpProtocol: tcp
-                  FromPort: 0
-                  ToPort: 65535
-                  CidrIp: 0.0.0.0/0
-            Tags:
-                - Key: Name
-                  Value: !Sub "${EnvironmentName}-WebServer-SG"
-    
-    # Launch and AutoScaling Configuration
+  ALBTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckEnabled: true
+      HealthCheckIntervalSeconds: 15
+      HealthCheckPath: /
+      HealthCheckPort: 80
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 3
+      HealthyThresholdCount: 2
+      Matcher:
+        HttpCode: 200
+      Port: 80
+      Protocol: HTTP
+      TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: 30
+      TargetType: instance
+      UnhealthyThresholdCount: 5
+      VpcId:
+        Fn::ImportValue:
+          !Sub "${EnvironmentName}-VPCID"
 
-    UdagramAutoScalingGroup:
-        Type: AWS::AutoScaling::AutoScalingGroup
-        Properties:
-            VPCZoneIdentifier:
-            - Fn::ImportValue:
-                    !Sub "${EnvironmentName}-PRIV-SUBNETS"
-            LaunchConfigurationName:
-                Ref: UdagramLaunchConfig
-            MinSize: "2"
-            MaxSize: "4"
-            TargetGroupARNs:
-                - Ref: UdagramTargetGroup
+  WebServersAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      AutoScalingGroupName: Web Servers ASG
+      DesiredCapacity: 4
+      HealthCheckGracePeriod: 15
+      HealthCheckType: ELB
+      LaunchConfigurationName: !Ref WebServersLaunchConfiguration
+      MaxSize: 6
+      MinSize: 4
+      TargetGroupARNs:
+        - !Ref ALBTargetGroup
+      VPCZoneIdentifier:
+        - Fn::ImportValue:
+            !Sub "${EnvironmentName}-PRIV-NETS"
 
-    UdagramLaunchConfig:
-        Type: AWS::AutoScaling::LaunchConfiguration
-        Properties:
-            UserData:
-                Fn::Base64: !Sub |
-                    #!/bin/bash
-                    apt-get update -y
-                    apt-get install unzip awscli -y
-                    apt-get install apache2 -y
-                    systemctl start apache2.service
-                    cd /var/www/html
-                    aws s3 cp s3://udacity-demo-1/udacity.zip .
-                    unzip -o udacity.zip
-            ImageId: !Ref EC2ImageId
-            IamInstanceProfile: !Ref EC2InstanceProfile
-            SecurityGroups:
-            - Ref: WebServerSecurityGroup
-            InstanceType: !Ref EC2InstanceType
-            BlockDeviceMappings:
-            - DeviceName: "/dev/sdk"
-              Ebs:
-                  VolumeSize: !Ref EC2VolumeSize
+  ALBWebServers:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      IpAddressType: ipv4
+      Scheme: internet-facing
+      SecurityGroups:
+        - !Ref LBSecurityGroup
+      Subnets:
+        - Fn::ImportValue: !Sub "${EnvironmentName}-PUB1-SN"
+        - Fn::ImportValue: !Sub "${EnvironmentName}-PUB2-SN"
+      Type: application
 
-    # Load Balancer Configuration
-    
-    UdagramLoadBalancer:
-        Type: AWS::ElasticLoadBalancingV2::LoadBalancer
-        Properties:
-            Subnets:
-            - Fn::ImportValue: !Sub "${EnvironmentName}-PUB-SUBNET1"
-            - Fn::ImportValue: !Sub "${EnvironmentName}-PUB-SUBNET2"
-            SecurityGroups:
-            - Ref: LoadBalancerSecurityGroup
-    
-    UdagramLoadBalancerListener:
-        Type: AWS::ElasticLoadBalancingV2::Listener
-        Properties:
-            DefaultActions:
-            - Type: forward
-              TargetGroupArn:
-                  Ref: UdagramTargetGroup
-            LoadBalancerArn:
-                Ref: UdagramLoadBalancer
-            Port: '80'
-            Protocol: HTTP
+  ALBWebServersListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - TargetGroupArn: !Ref ALBTargetGroup
+          Type: forward
+      LoadBalancerArn: !Ref ALBWebServers
+      Port: 80
+      Protocol: HTTP
 
-    UdagramLoadBalancerListenerRule:
-        Type: AWS::ElasticLoadBalancingV2::ListenerRule
-        Properties:
-            Actions:
-              - Type: forward
-                TargetGroupArn: !Ref UdagramTargetGroup
-            Conditions:
-              - Field: path-pattern
-                Values: [/]
-            ListenerArn: !Ref UdagramLoadBalancerListener
-            Priority: 1
-
-    # TargetGroup Configuration for LB and ASG
-
-    UdagramTargetGroup:
-        Type: AWS::ElasticLoadBalancingV2::TargetGroup
-        Properties:
-            HealthCheckIntervalSeconds: 10
-            HealthCheckPath: /
-            HealthCheckProtocol: HTTP
-            HealthCheckTimeoutSeconds: 8
-            HealthyThresholdCount: 2
-            Port: 80
-            Protocol: HTTP
-            UnhealthyThresholdCount: 5
-            VpcId:
-                Fn::ImportValue:
-                    Fn::Sub: "${EnvironmentName}-VPCID"
+  ALBWebServersListenerRule1:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      Actions:
+        - TargetGroupArn: !Ref ALBTargetGroup
+          Type: forward
+      Conditions:
+        - Field: path-pattern
+          Values:
+            - /
+      ListenerArn: !Ref ALBWebServersListener
+      Priority: 1
 
 Outputs:
-    udagramLoadBalancerDnsName:
-        Description: DNS of Udagram Load Balancer used to access the deployed services
-        Value: !Sub "http://${UdagramLoadBalancer.DNSName}"
+  PublicUrlLoadBalancer:
+    Description: Public HTTP Url of the Load Balancer
+    Value: !Join [ '', [ 'http://', !GetAtt ALBWebServers.DNSName ] ]

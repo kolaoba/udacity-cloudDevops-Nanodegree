@@ -1,18 +1,14 @@
 [
-    {
-        "ParameterKey": "EnvironmentName",
-        "ParameterValue": "project2-udagram"
-    },
-    {
-        "ParameterKey": "EC2ImageId",
-        "ParameterValue": "ami-0b0dcb5067f052a63"
-    },
-    {
-        "ParameterKey": "EC2InstanceType",
-        "ParameterValue": "t2.medium"
-    },
-    {
-        "ParameterKey": "EC2VolumeSize",
-        "ParameterValue": "10"
-    }
+	{
+		"ParameterKey": "EnvironmentName",
+		"ParameterValue": "UdagramApp"
+	},
+	{
+		"ParameterKey": "WebServerImageId",
+		"ParameterValue": "ami-00ddb0e5626798373"
+	},
+	{
+		"ParameterKey": "WebServerInstanceType",
+		"ParameterValue": "t3.medium"
+	}
 ]
