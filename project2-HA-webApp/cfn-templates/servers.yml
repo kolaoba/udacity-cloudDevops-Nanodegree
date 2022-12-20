@@ -55,7 +55,7 @@ Resources:
       VpcId:
         Fn::ImportValue:
           !Sub "${EnvironmentName}-VPCID"
-  UdacityProjectRole:
+  UdagramS3Role:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
@@ -82,7 +82,7 @@ Resources:
     Type: AWS::IAM::InstanceProfile
     Properties:
       Roles:
-        - !Ref UdacityProjectRole
+        - !Ref UdagramS3Role
 
   WebServersLaunchConfiguration:
     Type: AWS::AutoScaling::LaunchConfiguration
@@ -102,10 +102,13 @@ Resources:
         Fn::Base64: |
           #!/bin/bash
           apt-get update -y
-          apt-get install apache2 -y
+          apt-get install unzip awscli apache2 -y
           systemctl start apache2.service
           cd /var/www/html
-          echo "Udacity Demo Web Server Up and Running!" > index.html
+          rm index.html
+          aws s3 cp s3://kolapoudagramfiles/udagram-app.zip .
+          unzip -o udagram-app.zip
+          systemctl restart apache2.service
 
   ALBTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
