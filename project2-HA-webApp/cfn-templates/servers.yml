@@ -137,12 +137,12 @@ Resources:
     Type: AWS::AutoScaling::AutoScalingGroup
     Properties:
       AutoScalingGroupName: Web Servers ASG
-      DesiredCapacity: 4
+      DesiredCapacity: 2
       HealthCheckGracePeriod: 15
       HealthCheckType: ELB
       LaunchConfigurationName: !Ref WebServersLaunchConfiguration
-      MaxSize: 6
-      MinSize: 4
+      MaxSize: 4
+      MinSize: 2
       TargetGroupARNs:
         - !Ref ALBTargetGroup
       VPCZoneIdentifier:
